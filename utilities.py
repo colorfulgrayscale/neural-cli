@@ -14,7 +14,6 @@ import logging
 log = logging.getLogger('pynu')
 log.setLevel(logging.DEBUG)
 ch = logging.StreamHandler()
-#formatter = logging.Formatter('%(message)s')
 formatter = logging.Formatter("%(asctime)s %(message)s", "%H:%M:%S")
 ch.setFormatter(formatter)
 log.addHandler(ch)
@@ -62,7 +61,7 @@ class DataLoader:
             header = None
         else:
             header = ",".join("C{0}".format(i) for i in range(1, 90))
-        data = pd.DataFrame(csv2rec("./datasets/crx.data.txt", names=header, missing="?"))
+        data = pd.DataFrame(csv2rec(self.fileName, names=header, missing="?"))
         meta = self.extractMeta(data)
         return data, meta
 
@@ -91,11 +90,12 @@ class DataCleaner:
             if columnType == "nominal":
                 # if its a nominal column, replace unknowns with most occuring element
                 valuesCount = column.value_counts()  # a sorted list containing the frequency of occurances of all values
-                if '' in valuesCount.keys():  # check if there are any unknown values in column
+                if '' in valuesCount.keys() or '?' in valuesCount.keys():  # check if there are any unknown values in column
                     mode = valuesCount.index[0]  # pick the top most element from value count
-                    if mode == "":
+                    if mode in ("", "?"):
                         mode = valuesCount.index[1]  # if the most occuring element happens to be an unknown, just pick the next
                     column[column == ""] = mode
+                    column[column == "?"] = mode
                     dataFrame[columnName] = column  # use regex to replace unknown with mode through entire column
             elif columnType == "numeric":
                 # if its a numeric column, replace '?' with mean of column
@@ -218,7 +218,7 @@ class DataCleaner:
                     try:
                         categoryIndex = columnCategories.index(value)  # get index of value in enum list
                     except ValueError:
-                        raise Exception("Unknown Category Value Detected: {0}. Was expecting [{1}]", value, ",".join(i for i in columnCategories))
+                        raise Exception("Unknown Category Value Detected: '{0}' in Column '{2}'. Was expecting [{1}]".format(value, ",".join(i for i in columnCategories), columnName))
                     binaryVector = np.zeros(len(columnCategories))
                     binaryVector[categoryIndex] = 1
                     columnBinaryList.append([item for item in binaryVector])  # expand column to span several subcolumns

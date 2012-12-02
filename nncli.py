@@ -53,10 +53,11 @@ for counter, (training, validation) in enumerate(crossValidate(items=range(data.
 
     #setup MLP and start training
     mlp = MLP()
-    li("Fold {2}/{3} - Training: {0} iterations, {1} features".format(mlp.trainingIterations, trainingFeatures.shape[0], counter + 1, folds))
+    li("Fold {2}/{3} - Training with {1}/{4} rows ({0} iterations)".format(mlp.trainingIterations, trainingFeatures.shape[0], counter + 1, folds, data.shape[0]))
     mlp.train(trainingFeatures, trainingLabels, topology="?")
 
     #make predictions
+    li("Fold {0}/{1} - Testing with {2}/{3} rows".format(counter + 1, folds, validationFeatures.shape[0], data.shape[0]))
     predictedOutput = list()
     for loopCounter, (rowIndex, row) in enumerate(validationFeatures.iterrows()):
         predictedOutput.append([item for item in mlp.predict(row)])
