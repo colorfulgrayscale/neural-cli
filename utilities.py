@@ -34,9 +34,9 @@ class DataLoader:
     def load(self, header=False):
         """ Load file based on extension """
         if self.fileExtension in (".csv", ".data", ".txt", ".gz"):
-            return self.loadCSV(header)
+            return self._loadCSV(header)
         elif self.fileExtension in (".arff", ".arf"):
-            return self.loadARFF()
+            return self._loadARFF()
         raise Exception("Unknown file format. Currently supports csv, txt, gz and arff")
 
     def extractMeta(self, data):
@@ -55,7 +55,7 @@ class DataLoader:
                 meta.append((column, 'REAL'))
         return MetaData(self.baseName, meta)
 
-    def loadCSV(self, header=False):
+    def _loadCSV(self, header=False):
         "Plain text files"
         if header:
             header = None
@@ -65,7 +65,7 @@ class DataLoader:
         meta = self.extractMeta(data)
         return data, meta
 
-    def loadARFF(self):
+    def _loadARFF(self):
         "*.ARFF, WEKA files"
         data, meta = arff.loadarff(self.fileName)
         return pd.DataFrame(data), meta
@@ -190,6 +190,10 @@ class DataCleaner:
             return dataFrame
 
         # if its a pandas dataframe
+
+        if "nominal" not in meta.types():
+            return inputDataFrame  # if there are no nomial values, return
+
         newDataFrame = pd.DataFrame()
         meta.nomCatMappings = dict()  # for storing nominalToCategorical column mappings
         for columnName in meta.names():
@@ -243,6 +247,9 @@ class DataCleaner:
         dataFrame = inputDataFrame.copy()  # make a copy, dont screw with the original
         newDataFrame = pd.DataFrame()
 
+        if "nominal" not in meta.types():
+            return inputDataFrame  # if there are no nomial values, return
+
         if not hasattr(meta, "nomCatMappings"):
             raise Exception("Mappings info not found in metadata")
 
@@ -271,7 +278,7 @@ class DataCleaner:
         return newDataFrame
 
 
-def crossValidate(items, k, randomize=False):
+def crossValidateIndices(items, k, randomize=False):
     """http://code.activestate.com/recipes/521906-k-fold-cross-validation-partition/#c1"""
     if randomize:
         items = list(items)
@@ -315,7 +322,8 @@ def comparePrediction(predictedMatrix, expectedMatrix, meta):
         annotatedMatrix = annotatedMatrix.join(pd.DataFrame(error[column], columns=['{0}E'.format(column), ]))
         columnType, columnCategories = meta[column]
         if columnType == "nominal":
-            errorStats.append("{0} Root Mean Square Error: {1}".format(column, np.sqrt(errorSum[column] / float(predictedMatrix.shape[0]))))
+            correct = round(((predictedMatrix.shape[0] - errorSum[column]) / float(predictedMatrix.shape[0])) * 100, 2)
+            errorStats.append("{0} Root Mean Square Error: {1} ({2}% accurate)".format(column, np.sqrt(errorSum[column] / float(predictedMatrix.shape[0])), correct))
         elif columnType == "numeric":
             errorStats.append("{0} Sum Square Error: {1}".format(column, errorSum[column]))
 
