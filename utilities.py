@@ -34,10 +34,15 @@ class DataLoader:
     def load(self, header=False):
         """ Load file based on extension """
         if self.fileExtension in (".csv", ".data", ".txt", ".gz"):
-            return self._loadCSV(header)
+            data, meta = self._loadCSV(header)
         elif self.fileExtension in (".arff", ".arf"):
-            return self._loadARFF()
-        raise Exception("Unknown file format. Currently supports csv, txt, gz and arff")
+            data, meta = self._loadARFF()
+        else:
+            raise Exception("Unknown file format. Currently supports csv, txt, gz and arff")
+        # set some labels meta
+        meta.labelColumns = []
+        meta.categoricalLabelColumns = []
+        return data, meta
 
     def extractMeta(self, data):
         """ Attempts to reverse engineer meta data from pandas dataframe"""
@@ -278,6 +283,29 @@ class DataCleaner:
         return newDataFrame
 
 
+def setLabels(data, meta, labels):
+    """ Set the label columns in a dataset"""
+    labelID = labels.split(",")
+    for index in labelID:
+        index = index.strip()
+        if index.isdigit():
+            try:
+                colName = data.icol(int(index) - 1).name
+            except:
+                raise Exception("Invalid column index entered")
+            else:
+                meta.labelColumns.append(colName)
+                meta.categoricalLabelColumns.append(colName)
+        else:
+            try:
+                colName = data[index]
+            except:
+                raise Exception("Invalid column name entered")
+            else:
+                meta.labelColumns.append(index)
+                meta.categoricalLabelColumns.append(index)
+
+
 def crossValidateIndices(items, k, randomize=False):
     """http://code.activestate.com/recipes/521906-k-fold-cross-validation-partition/#c1"""
     if randomize:
@@ -294,7 +322,7 @@ def crossValidateIndices(items, k, randomize=False):
         yield training, validation
 
 
-def comparePrediction(predictedMatrix, expectedMatrix, meta):
+def comparePrediction(predictedMatrix, expectedMatrix, meta, printToScreen=False):
     """ Annotate predictions by comparing it to expected results"""
     annotatedMatrix = predictedMatrix.copy()
     error = defaultdict(list)
@@ -304,13 +332,13 @@ def comparePrediction(predictedMatrix, expectedMatrix, meta):
             prediction = row[labelColumn]
             expected = expectedMatrix.ix[rowIndex][labelColumn]
             columnType, columnCategories = meta[labelColumn]
-            if columnType == "nominal":
+            if columnType == "nominal":  # calculate hamming distance and RMS
                 if prediction == expected:
                     error[labelColumn].append("✓")
                 else:
                     error[labelColumn].append("✖ ({0})".format(expected))
                     errorSum[labelColumn] += 1.0
-            elif columnType == "numeric":
+            elif columnType == "numeric":  # calculate difference and SSE
                 difference = expected - prediction
                 error[labelColumn].append(difference)
                 errorSum[labelColumn] += difference * difference
@@ -318,15 +346,21 @@ def comparePrediction(predictedMatrix, expectedMatrix, meta):
                 raise Exception("Unknown Column Type: {0}".format(columnType))
 
     errorStats = [""]
+    totalError = 0.0
     for column in error.keys():
         annotatedMatrix = annotatedMatrix.join(pd.DataFrame(error[column], columns=['{0}E'.format(column), ]))
         columnType, columnCategories = meta[column]
         if columnType == "nominal":
             correct = round(((predictedMatrix.shape[0] - errorSum[column]) / float(predictedMatrix.shape[0])) * 100, 2)
-            errorStats.append("{0} Root Mean Square Error: {1} ({2}% accurate)".format(column, np.sqrt(errorSum[column] / float(predictedMatrix.shape[0])), correct))
+            e = np.sqrt(errorSum[column] / float(predictedMatrix.shape[0]))
+            errorStats.append("'{0}' Root Mean Square Error: {1} ({2}% accurate)".format(column, e, correct))
         elif columnType == "numeric":
-            errorStats.append("{0} Sum Square Error: {1}".format(column, errorSum[column]))
+            e = errorSum[column]
+            errorStats.append("'{0}' Sum Square Error: {1}".format(column, e))
+        totalError += e  # add up error for each column. # TODO, instead of adding up SSE and RMS, compute euclidian distance between predicted and given
 
-    print annotatedMatrix.to_string()
-    print "\n".join(errorStats)
-    return annotatedMatrix, errorSum
+    if printToScreen:
+        print annotatedMatrix.to_string()
+        print "\n".join(errorStats)
+
+    return totalError
