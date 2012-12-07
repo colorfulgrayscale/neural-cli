@@ -105,7 +105,7 @@ class MLP():
         if NoneType in (type(self.features), type(self.labels)):
             raise Exception("Specify features, labels before allocating toplogy")
         #parse topology
-        if '?' in self.topology:
+        if self.topology in ('?', '0'):
             layerUnits = list()  # no topo specified
         else:
             layerUnits = self.topology.split("-")  # parse given topo
@@ -153,7 +153,7 @@ class MLP():
         pbar = ProgressBar(widgets=widgets)
         for i in pbar(xrange(self.trainingIterations)):
             if self.trackLearning:
-                if i % 10 == 0:
+                if i % 50 == 0:
                     for layerName in self.preceptronLayers.keys():
                         layer = self.preceptronLayers[layerName]
                         layer.weightsHistory.append(np.sqrt((layer.weights ** 2).sum(axis=0).sum()))

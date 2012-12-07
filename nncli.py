@@ -15,7 +15,7 @@ parser.add_argument('-g', '--graph', help='Graph the learning Process and save i
 subparsers = parser.add_subparsers(dest='command', help="Specify one of these actions")
 parser_cv = subparsers.add_parser('cross_validate')
 parser_cv.add_argument('-k', '--folds', help='How many times to do cross validation ', default=3, type=int)
-parser_cv.add_argument('-i', '--iterations', help='# of training iterations', default=500, type=int)
+parser_cv.add_argument('-i', '--iterations', help='# of training iterations', default=400, type=int)
 parser_cv.add_argument('-w', '--weights', help='Initial Weights Multiplier', default=1.0, type=float)
 parser_cv = subparsers.add_parser('train')
 parser_cv.add_argument('-o', '--output', help='Output json file to store trained model.', default=None)
@@ -26,6 +26,7 @@ print args
 
 def crossValidate(data, meta, folds, topology, iterations, weights, graph=None):
     "k-fold cross validation"
+    averageError = 0.0
     for counter, (training, validation) in enumerate(crossValidateIndices(items=range(data.shape[0]), k=folds, randomize=True)):
         # setup training and validation matricies
         train               = data.ix[training].reset_index(drop=True)
@@ -58,9 +59,11 @@ def crossValidate(data, meta, folds, topology, iterations, weights, graph=None):
         #validate model
         li("Fold {0}/{1} - Testing with {2}/{3} rows".format(counter + 1, folds, validationFeatures.shape[0], data.shape[0]))
         error = mlp.validateModel(printToScreen=True)
+        averageError += error
 
-        with open("history.txt", "a") as myfile:
-            myfile.write("{0},{1},{2},{3}\n".format(topology, weights, counter, error))
+    averageError = averageError / folds
+    li("Average error across all folds: {0}".format(averageError))
+    return averageError
 
 
 if __name__ == '__main__':
@@ -87,4 +90,7 @@ if __name__ == '__main__':
 
     if args['command'] == "cross_validate":
         li("Starting {0}-fold cross validation".format(args['folds']))
-        crossValidate(data, meta, folds=args['folds'], topology=args['topo'], iterations=args['iterations'], weights=args['weights'], graph=args['graph'])
+        error = crossValidate(data, meta, folds=args['folds'], topology=args['topo'], iterations=args['iterations'], weights=args['weights'], graph=args['graph'])
+
+        with open("history.txt", "a") as myfile:
+            myfile.write("\n{0},{1},{2}".format(args['data'], args['topo'], error))
