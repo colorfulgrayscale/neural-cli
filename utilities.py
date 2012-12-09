@@ -26,7 +26,7 @@ class DataLoader:
 
     def __init__(self, fileName):
         if not os.path.isfile(fileName):
-            raise IOError("File not found.")
+            raise IOError("'{0}' not found.".format(fileName))
         self.fileExtension = os.path.splitext(fileName)[1]
         self.fileName = fileName
         self.baseName = os.path.basename(fileName)

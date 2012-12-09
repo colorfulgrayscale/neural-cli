@@ -8,24 +8,36 @@ from nn import MLP
 #sys.tracebacklimit = 0
 
 parser = argparse.ArgumentParser(description='Commandline neural network utility')
-parser.add_argument('-d', '--data', help='Dataset to use', required=True)
+parser.add_argument('-d', '--data', help='Dataset to use')
 parser.add_argument('-l', '--labels', help='Which columns to use as labels')
-parser.add_argument('-t', '--topo', help='Neural Network Topology', default="5")
-parser.add_argument('-g', '--graph', help='Graph the learning Process and save it to specified file name')
+
 subparsers = parser.add_subparsers(dest='command', help="Specify one of these actions")
 parser_cv = subparsers.add_parser('cross_validate')
 parser_cv.add_argument('-k', '--folds', help='How many times to do cross validation ', default=3, type=int)
-parser_cv.add_argument('-i', '--iterations', help='# of training iterations', default=400, type=int)
+parser_cv.add_argument('-g', '--graph', help='Graph the learning Process and save it to specified file name')
+parser_cv.add_argument('-t', '--topo', help='Neural Network Topology', default="5")
+parser_cv.add_argument('-e', '--epochs', help='# of training iterations over entire dataset', default=400, type=int)
 parser_cv.add_argument('-w', '--weights', help='Initial Weights Multiplier', default=1.0, type=float)
-parser_cv = subparsers.add_parser('train')
-parser_cv.add_argument('-o', '--output', help='Output json file to store trained model.', default=None)
-args = vars(parser.parse_args())
 
+parser_train = subparsers.add_parser('train')
+parser_train.add_argument('-o', '--output', help='Output trained model to a JSON')
+parser_train.add_argument('-g', '--graph', help='Graph the learning Process and save it to specified file name')
+parser_train.add_argument('-t', '--topo', help='Neural Network Topology', default="5")
+parser_train.add_argument('-e', '--epochs', help='# of training iterations over entire dataset', default=400, type=int)
+parser_train.add_argument('-w', '--weights', help='Initial Weights Multiplier', default=1.0, type=float)
+
+
+parser_predict = subparsers.add_parser('predict')
+parser_predict.add_argument('-i', '--input', help='Trained model, JSON')
+
+args = vars(parser.parse_args())
 print args
 
 
 def crossValidate(data, meta, folds, topology, iterations, weights, graph=None):
     "k-fold cross validation"
+    if folds <= 1:
+        raise Exception("Cross validation folds must be > 1")
     averageError = 0.0
     for counter, (training, validation) in enumerate(crossValidateIndices(items=range(data.shape[0]), k=folds, randomize=True)):
         # setup training and validation matricies
@@ -37,7 +49,7 @@ def crossValidate(data, meta, folds, topology, iterations, weights, graph=None):
         validationLabels    = validate[meta.categoricalLabelColumns]  # use only output columns
 
         #setup MLP and start training
-        li("Fold {2}/{3} - Training with {1}/{4} rows ({0} iterations)".format(iterations, trainingFeatures.shape[0], counter + 1, folds, data.shape[0]))
+        li("Fold {2}/{3} - Training with {1}/{4} rows ({0} epochs)".format(iterations, trainingFeatures.shape[0], counter + 1, folds, data.shape[0]))
         mlp                          = MLP()
         mlp.trainingIterations       = iterations
         mlp.initalWeightsMultiplier  = weights
@@ -68,7 +80,12 @@ def crossValidate(data, meta, folds, topology, iterations, weights, graph=None):
 
 if __name__ == '__main__':
 
-    loader = DataLoader(args['data'])
+    if not args['data']:
+        data = raw_input('Path to dataset: ')
+    else:
+        data = args['data']
+
+    loader = DataLoader(data)
     li("Loading Dataset")
     data, meta = loader.load()
     li(meta)
@@ -88,9 +105,10 @@ if __name__ == '__main__':
     data = DataCleaner.normalize(data, meta)
     data = DataCleaner.nominalToCategorical(data, meta)
 
-    if args['command'] == "cross_validate":
-        li("Starting {0}-fold cross validation".format(args['folds']))
-        error = crossValidate(data, meta, folds=args['folds'], topology=args['topo'], iterations=args['iterations'], weights=args['weights'], graph=args['graph'])
+    if args['command'] in ("cross_validate", "train"):
+        if args['command'] == "cross_validate":
+            li("Starting {0}-fold cross validation".format(args['folds']))
+            error = crossValidate(data, meta, folds=args['folds'], topology=args['topo'], iterations=args['epochs'], weights=args['weights'], graph=args['graph'])
 
-        with open("history.txt", "a") as myfile:
-            myfile.write("\n{0},{1},{2}".format(args['data'], args['topo'], error))
+    #with open("~/nncli-history.txt", "a") as myfile:
+        #myfile.write("\n{0},{1},{2},{3}".format(args['data'], args['command'], args['topo'], error))
