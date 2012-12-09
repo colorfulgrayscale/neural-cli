@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import os
+import math
 import numpy as np
 import pandas as pd
 from scipy.io import arff
@@ -325,39 +326,57 @@ def crossValidateIndices(items, k, randomize=False):
 def comparePrediction(predictedMatrix, expectedMatrix, meta, printToScreen=False):
     """ Annotate predictions by comparing it to expected results"""
     annotatedMatrix = predictedMatrix.copy()
-    error = defaultdict(list)
-    errorSum = defaultdict(float)
+    labelCount = len(meta.labelColumns)
+    errorDisplay = defaultdict(list)
+    columnErrors = defaultdict(float)
+    rowErrors = []
     for loopCounter, (rowIndex, row) in enumerate(predictedMatrix.iterrows()):
+        rowError = 0.0
         for labelColumn in meta.labelColumns:
             prediction = row[labelColumn]
             expected = expectedMatrix.ix[rowIndex][labelColumn]
             columnType, columnCategories = meta[labelColumn]
-            if columnType == "nominal":  # calculate hamming distance and RMS
+            if columnType == "nominal":  # calculate hamming distance
                 if prediction == expected:
-                    error[labelColumn].append("✓")
+                    errorDisplay[labelColumn].append("✓")
+                    error = 0.0
                 else:
-                    error[labelColumn].append("✖ ({0})".format(expected))
-                    errorSum[labelColumn] += 1.0
-            elif columnType == "numeric":  # calculate difference and SSE
-                difference = expected - prediction
-                error[labelColumn].append(difference)
-                errorSum[labelColumn] += difference * difference
+                    errorDisplay[labelColumn].append("✖ ({0})".format(expected))
+                    error = 1.0
+            elif columnType == "numeric":
+                error = expected - prediction
+                errorDisplay[labelColumn].append(error)
             else:
                 raise Exception("Unknown Column Type: {0}".format(columnType))
+            squareError = error * error
+            columnErrors[labelColumn] += squareError  # column error = sum of squared errors
+            if labelCount > 1:
+                rowError += squareError
+
+        if labelCount > 1:  # calculate total error only if there are more than 2 columns
+            rowErrors.append(math.sqrt(rowError))  # total error = √(column1Error² + column2Error² + columnNError²)
+            rowError = 0.0
 
     errorStats = [""]
     totalError = 0.0
-    for column in error.keys():
-        annotatedMatrix = annotatedMatrix.join(pd.DataFrame(error[column], columns=['{0}E'.format(column), ]))
+    for column in errorDisplay.keys():
+        annotatedMatrix = annotatedMatrix.join(pd.DataFrame(errorDisplay[column], columns=['{0}Error'.format(column), ]))
         columnType, columnCategories = meta[column]
         if columnType == "nominal":
-            correct = round(((predictedMatrix.shape[0] - errorSum[column]) / float(predictedMatrix.shape[0])) * 100, 2)
-            e = np.sqrt(errorSum[column] / float(predictedMatrix.shape[0]))
+            correct = round(((predictedMatrix.shape[0] - columnErrors[column]) / float(predictedMatrix.shape[0])) * 100, 2)
+            # root mean square error
+            e = math.sqrt(columnErrors[column] / float(predictedMatrix.shape[0]))
             errorStats.append("'{0}' Root Mean Square Error: {1} ({2}% accurate)".format(column, e, correct))
         elif columnType == "numeric":
-            e = errorSum[column]
-            errorStats.append("'{0}' Sum Square Error: {1}".format(column, e))
-        totalError += e  # add up error for each column. # TODO, instead of adding up SSE and RMS, compute euclidian distance between predicted and given
+            # root sum squared error
+            e = math.sqrt(columnErrors[column])
+            errorStats.append("'{0}' Root Sum Square Error: {1}".format(column, e))
+        totalError += e
+
+    if labelCount > 1:
+        annotatedMatrix = annotatedMatrix.join(pd.DataFrame(rowErrors, columns=['totalError', ]))
+        totalError = sum(rowErrors)
+        errorStats.append("Total Error: {0}".format(totalError))
 
     if printToScreen:
         print annotatedMatrix.to_string()

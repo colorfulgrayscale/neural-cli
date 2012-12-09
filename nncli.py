@@ -110,5 +110,7 @@ if __name__ == '__main__':
             li("Starting {0}-fold cross validation".format(args['folds']))
             error = crossValidate(data, meta, folds=args['folds'], topology=args['topo'], iterations=args['epochs'], weights=args['weights'], graph=args['graph'])
 
-    #with open("~/nncli-history.txt", "a") as myfile:
+    #uncomment the lines if you want to log all files processed
+    #from os.path import expanduser
+    #with open("{0}/nncli-history.txt".format(expanduser("~")), "a") as myfile:
         #myfile.write("\n{0},{1},{2},{3}".format(args['data'], args['command'], args['topo'], error))
