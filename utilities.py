@@ -41,7 +41,7 @@ class DataLoader:
         else:
             raise Exception("Unknown file format. Currently supports csv, txt, gz and arff")
         # set some labels meta
-        meta.labelColumns = []
+        meta.labelColumns = []  # store the label fields
         meta.categoricalLabelColumns = []
         return data, meta
 
@@ -76,7 +76,7 @@ class DataLoader:
         data, meta = arff.loadarff(self.fileName)
         return pd.DataFrame(data), meta
 
-    # TODO add loaders for HDF5, Excel and Matlab Mat formats
+    # TODO add loaders for HDF5, Excel and Matlab '.mat' formats
 
 
 class DataCleaner:
@@ -102,7 +102,7 @@ class DataCleaner:
                         mode = valuesCount.index[1]  # if the most occuring element happens to be an unknown, just pick the next
                     column[column == ""] = mode
                     column[column == "?"] = mode
-                    dataFrame[columnName] = column  # use regex to replace unknown with mode through entire column
+                    dataFrame[columnName] = column  # update data frame with new column
             elif columnType == "numeric":
                 # if its a numeric column, replace '?' with mean of column
                 if column.dtype == np.dtype('float64'):
@@ -247,7 +247,7 @@ class DataCleaner:
     @staticmethod
     def categoricalToNominal(inputDataFrame, meta):
         """
-        This converts from categorical distribution to Nominal Data
+        This converts from categorical distribution back into its original Nominal form
         <0,1,0,0> -> y in {"u", "y", "l", "t"}
         """
         dataFrame = inputDataFrame.copy()  # make a copy, dont screw with the original
@@ -308,7 +308,7 @@ def setLabels(data, meta, labels):
 
 
 def crossValidateIndices(items, k, randomize=False):
-    """http://code.activestate.com/recipes/521906-k-fold-cross-validation-partition/#c1"""
+    """adapted from http://code.activestate.com/recipes/521906-k-fold-cross-validation-partition/#c1"""
     if randomize:
         items = list(items)
         shuffle(items)

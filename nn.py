@@ -14,11 +14,11 @@ from utilities import DataCleaner, comparePrediction
 widgets = [Percentage(), " ", Bar('|'), ' ', ETA()]
 
 # TODO softmax and possibly linear
-activationFunctions = {
+activationFunctions = {  # activation functions
         'logistic': lambda x: 1 / (1 + math.exp(-x)),
         'tanh': lambda x: math.tanh(x),
         }
-activationFunctionsD = {
+activationFunctionsD = {  # their derivatives
         'logistic': lambda x: math.exp(x) / ((math.exp(x) + 1) ** 2),
         'tanh': lambda x: (math.sech(x)) ** 2,
         }
@@ -32,14 +32,14 @@ class Layer():
 
     def __init__(self, rows, columns, name="Hidden Layer", activation="logistic", weightsMultiplier=1):
         """ columns - neurons in current layer,  rows - size of the previous layer """
-        self.weights = np.random.standard_normal(size=(rows, columns)) * weightsMultiplier  # initialize weights matrix. size of weights manipulated with the multiplier.
-        self.bias = (np.zeros(shape=(rows)))  # bias vector initialized with zeros
-        self.inputs = (np.zeros(shape=(rows)))  # input vector
-        self.outputs = (np.zeros(shape=(rows)))  # output vector
-        self.error = (np.zeros(shape=(rows)))  # error vector
-        self.name = name  # name of the layer, for indexing
-        self.neuronCount = rows
-        self.weightsCount = columns
+        self.weights       = np.random.standard_normal(size=(rows, columns)) * weightsMultiplier  # initialize weights matrix. size of weights manipulated with the multiplier.
+        self.bias          = np.zeros(shape=(rows))  # bias vector initialized with zeros
+        self.inputs        = np.zeros(shape=(rows))  # input vector
+        self.outputs       = np.zeros(shape=(rows))  # output vector
+        self.error         = np.zeros(shape=(rows))  # error vector
+        self.name          = name  # name of the layer, for indexing
+        self.neuronCount   = rows
+        self.weightsCount  = columns
         self.setActivation(activation)  # set activation function for neuron
 
         # variables to store snapshots of weights over time
@@ -48,8 +48,8 @@ class Layer():
 
     def setActivation(self, f):
         """ Set activation function for layer. 'f' Must be sigmoid """
-        self.activation = activationFunctions[f]  # lambda of activation function
-        self.activationD = activationFunctionsD[f]  # lambda of derivative of the activation function
+        self.activation   = activationFunctions[f]  # lambda of activation function
+        self.activationD  = activationFunctionsD[f]  # lambda of derivative of the activation function
 
     def pickle(self):
         """ Serialize Layer """
@@ -59,14 +59,14 @@ class Layer():
 
     def unPickle(self, attribs):
         """ Deserialize Layer """
-        self.weights = attribs[0]
-        self.bias = attribs[1]
-        self.inputs = attribs[2]
-        self.outputs = attribs[3]
-        self.error = attribs[4]
-        self.name = attribs[5]
-        self.neuronCount = attribs[6]
-        self.weightsCount = attribs[7],
+        self.weights       = attribs[0]
+        self.bias          = attribs[1]
+        self.inputs        = attribs[2]
+        self.outputs       = attribs[3]
+        self.error         = attribs[4]
+        self.name          = attribs[5]
+        self.neuronCount   = attribs[6]
+        self.weightsCount  = attribs[7],
 
     def __repr__(self):
         """ To string method. For debugging. """
@@ -106,7 +106,7 @@ class MLP():
             raise Exception("Specify features, labels before allocating toplogy")
         #parse topology
         if self.topology in ('?', '0'):
-            layerUnits = list()  # no topo specified
+            layerUnits = list()  # no topo specified, no hidden layers
         else:
             layerUnits = self.topology.split("-")  # parse given topo
         layerUnits.insert(0, self.features.shape[1])  # how many feature attributes
@@ -114,6 +114,7 @@ class MLP():
             layerUnits.append(self.labels.shape[1])  # how many label attributes
         except IndexError:
             layerUnits.append(self.labels.shape[0])  # if its only 1d, switch to 0
+
         layerUnits = [int(x) for x in layerUnits]
         self.preceptronLayers = OrderedDict()  # ordered dictionary to keep track of precetrons and for easy lookup by name
 
@@ -126,13 +127,15 @@ class MLP():
                 layer.name = "Hidden Layer: {0}".format(value)
             self.preceptronLayers[layer.name] = layer  # add it to a local datastucture to keep track of all layers
 
-    def printPreceptrons(self):
+    def printNetwork(self):
         """ Print all layers. For Debugging """
         for j in xrange(0, len(self.preceptronLayers)):
             print self.preceptronLayers.values()[j]
         print "\n"
 
     def validateModel(self, printToScreen=False):
+        """ take the validation data and test it on the network at any given point.
+        returns a single numeric error value which describes the goodness of the model"""
         if NoneType in (type(self.validationFeatures), type(self.validationLabels), type(self.meta)):
             raise Exception("Specify validation features and labels")
 
@@ -141,21 +144,25 @@ class MLP():
             predictedOutput.append([item for item in self.predict(row)])
         predictedOutput = pd.DataFrame(np.array(predictedOutput), columns=[self.meta.categoricalLabelColumns])
 
-        predictedMatrix = DataCleaner.deNormalize(DataCleaner.categoricalToNominal(self.validationFeatures.join(predictedOutput), self.meta), self.meta)
-        expectedMatrix = DataCleaner.deNormalize(DataCleaner.categoricalToNominal(self.validationFeatures.join(self.validationLabels), self.meta), self.meta)
-        error = comparePrediction(predictedMatrix, expectedMatrix, self.meta, printToScreen)
+        #convert predictions back into a human readable format
+        predictedMatrix  = DataCleaner.deNormalize(DataCleaner.categoricalToNominal(self.validationFeatures.join(predictedOutput), self.meta), self.meta)
+        expectedMatrix   = DataCleaner.deNormalize(DataCleaner.categoricalToNominal(self.validationFeatures.join(self.validationLabels), self.meta), self.meta)
+        error            = comparePrediction(predictedMatrix, expectedMatrix, self.meta, printToScreen)
         return error
 
-    def train(self, topology="?-?"):
+    def train(self):
         if NoneType in (type(self.features), type(self.labels), type(self.preceptronLayers)):
             raise Exception("Specify features, labels and allocate hidden layers before training")
 
         pbar = ProgressBar(widgets=widgets)
         for i in pbar(xrange(self.trainingIterations)):
             if self.trackLearning:
+                # if the user wants to track the evolution of weights and errors,
+                # take a snapshot of the network every 50 epochs
                 if i % 50 == 0:
                     for layerName in self.preceptronLayers.keys():
                         layer = self.preceptronLayers[layerName]
+                        #sum square of weights of each layer
                         layer.weightsHistory.append(np.sqrt((layer.weights ** 2).sum(axis=0).sum()))
                     self.errorHistoryY.append(self.validateModel())
                     self.errorHistoryX.append(i)
@@ -169,18 +176,21 @@ class MLP():
             self.learningRate *= 0.997  # attenuate learning rate
 
     def plotLearning(self, filename):
-        """ Plot evolution of weights through the training """
+        """ Plot evolution of weights throughout the training process """
         if not self.trackLearning:
             raise Exception("cannot plot, no tracking data")
         font = {'size' : 10}
         matplotlib.rc('font', **font)
         plt.figure()
+        # create two plots in a single image
+        # top half for error
         plt.subplot(211)
         plt.title("Evolution of Error and Weights")
         plt.plot(self.errorHistoryX, self.errorHistoryY, label='Error')
         plt.ylabel('prediction error')
         plt.grid(True)
         plt.ylim(bottom=0.0, top=1.0)
+        # bottom half for weights
         plt.subplot(212)
         for layerName in self.preceptronLayers.keys():
             layer = self.preceptronLayers[layerName]

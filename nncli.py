@@ -1,23 +1,27 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import argparse
+import sys
 from utilities import (DataLoader, DataCleaner, li,
         crossValidateIndices, setLabels)
 from nn import MLP
 
-#sys.tracebacklimit = 0
+sys.tracebacklimit = 0
 
 parser = argparse.ArgumentParser(description='Commandline neural network utility')
-parser.add_argument('-d', '--data', help='Dataset to use')
-parser.add_argument('-l', '--labels', help='Which columns to use as labels')
-
 subparsers = parser.add_subparsers(dest='command', help="Specify one of these actions")
+
 parser_cv = subparsers.add_parser('cross_validate')
+parser_cv.add_argument('-d', '--data', help='Dataset to use')
+parser_cv.add_argument('-l', '--labels', help='Which columns to use as labels')
 parser_cv.add_argument('-k', '--folds', help='How many times to do cross validation ', default=3, type=int)
 parser_cv.add_argument('-g', '--graph', help='Graph the learning Process and save it to specified file name')
-parser_cv.add_argument('-t', '--topo', help='Neural Network Topology', default="5")
+parser_cv.add_argument('-t', '--topo', help='Specify how many hidden layers and neurons per layer', default="5")  # default topology is a single hidden layer with 5 neurons
 parser_cv.add_argument('-e', '--epochs', help='# of training iterations over entire dataset', default=400, type=int)
 parser_cv.add_argument('-w', '--weights', help='Initial Weights Multiplier', default=1.0, type=float)
+
+parser_info = subparsers.add_parser('info')
+parser_info.add_argument('-d', '--data', help='Dataset to use')
 
 parser_train = subparsers.add_parser('train')
 parser_train.add_argument('-o', '--output', help='Output trained model to a JSON')
@@ -26,12 +30,10 @@ parser_train.add_argument('-t', '--topo', help='Neural Network Topology', defaul
 parser_train.add_argument('-e', '--epochs', help='# of training iterations over entire dataset', default=400, type=int)
 parser_train.add_argument('-w', '--weights', help='Initial Weights Multiplier', default=1.0, type=float)
 
-
 parser_predict = subparsers.add_parser('predict')
 parser_predict.add_argument('-i', '--input', help='Trained model, JSON')
 
 args = vars(parser.parse_args())
-print args
 
 
 def crossValidate(data, meta, folds, topology, iterations, weights, graph=None):
@@ -60,7 +62,7 @@ def crossValidate(data, meta, folds, topology, iterations, weights, graph=None):
         mlp.meta                     = meta
         mlp.topology                 = topology
         if graph:
-            mlp.trackLearning            = True
+            mlp.trackLearning        = True
         mlp.setupHiddenLayers()
         mlp.train()
 
@@ -90,6 +92,9 @@ if __name__ == '__main__':
     data, meta = loader.load()
     li(meta)
     li("Dataset has Rows: {0}, Columns: {1}".format(len(data), len(meta.names())))
+
+    if args['command'] in ("info"):
+        sys.exit(0)
 
     if not args['labels']:
         labels = raw_input('Which columns to use as labels? [{0}-{1}]: '.format(1, len(meta.names())))
